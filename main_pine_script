@@ -1,0 +1,89 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jefferysone1128
+
+//@version=4
+
+strategy("My Strategy" , overlay=true)
+
+//timeframe = input(3 , title="Time Frame")
+
+
+//DMI Part
+len = input(17, minval=1, title="DMI DI Length")
+lensig = input(14, title="DMI ADX Smoothing", minval=1, maxval=50)
+[diplus, diminus, adx] = dmi(len, lensig)
+dmi_dead_cross = crossunder(diplus,diminus)
+dmi_cross = (crossover(diplus,diminus)?1:dmi_dead_cross?-1:0)
+//plot(dmi_cross , color = color.blue, title="DMI_CROSS")
+
+
+//MACD Part
+[macd,signal,hist] = macd(close,12,26,9)
+macd_dead_cross = crossunder(macd,signal)
+macd_cross = (crossover(macd,signal)?1:macd_dead_cross?-1:0)
+//plot(macd_cross , color=color.red , title = "macd_cross")
+// plot(hist, title="Histogram", style=plot.style_columns, color=(hist>=0 ? (hist[1] < hist ? col_grow_above : col_fall_above) : (hist[1] < hist ? col_grow_below : col_fall_below) ), transp=0 )
+// plot(macd, title="MACD", color=col_macd, transp=0)
+// plot(signal, title="Signal", color=col_signal, transp=0)
+
+
+//SAR
+start = input(2, minval=0, maxval=10, title="Start - Default = 2 - Multiplied by .01")
+increment = input(2, minval=0, maxval=10, title="Step Setting (Sensitivity) - Default = 2 - Multiplied by .01" )
+maximum = input(2, minval=1, maxval=10, title="Maximum Step (Sensitivity) - Default = 2 - Multiplied by .10")
+sus = input(true, "Show Up Trending Parabolic Sar")
+sds = input(true, "Show Down Trending Parabolic Sar")
+disc = input(false, title="Start and Step settings are *.01 so 2 = .02 etc, Maximum Step is *.10 so 2 = .2")
+highlightStartPoints = input(title="Highlight Start Points ?", defval=true)
+
+startCalc = start * .01
+incrementCalc = increment * .01
+maximumCalc = maximum * .10
+
+psar = sar(startCalc, incrementCalc, maximumCalc)
+dir = psar < close ? 1 : -1
+
+
+// plot(dir,color = color.purple , title = "SAR")
+
+
+//KDJ
+
+ilong = input(20, title="period")
+isig = input(7, title="signal")
+m=1
+c = close
+h = highest(high, ilong)
+l = lowest(low,ilong)
+RSV = 100*((c-l)/(h-l))
+pK=0.0
+pD=0.0
+pK:=(m*RSV+(isig-m)*nz(pK[1]))/isig
+pD:= (m*pK+(isig-m)*nz(pD[1]))/isig
+pJ = 3 * pK-2 * pD
+
+KDJ_cross = crossover(pK,pD)?1:crossunder(pK,pD)?-1:0
+//plot(KDJ_cross, color=color.olive ,title='KDJ_cross' )
+
+dmi_enable = input(true,type=input.bool , title = 'DMI On/Off')
+macd_enable = input(true,type=input.bool , title = 'MACD On/Off')
+kdj_enable = input(true,type=input.bool , title = 'kdj On/Off')
+sar_enable = input(true,type=input.bool , title = 'SAR On/Off')
+
+rsi = rsi(close,14)
+//condition
+sar_signal = dir==1
+dmi_signal= (dmi_cross==1 or dmi_cross[1]==1 or dmi_cross[2]==1 or dmi_cross[3]==1 or dmi_cross[4]==1)
+plotarrow(dmi_signal ? 1 : na, "DMI True")
+macd_signal = (macd_cross==1 or macd_cross[1]==1 or macd_cross[2]==1 or macd_cross[3]==1 or macd_cross[4]==1)
+plotchar(macd_signal, "MACD True")
+kdj_signal = (KDJ_cross==1 or KDJ_cross[1]==1 or KDJ_cross[2]==1 or KDJ_cross[3]==1 or KDJ_cross[4]==1)
+plotchar(kdj_signal, "kdj True")
+
+
+longCondition = macd_signal and kdj_signal 
+strategy.entry("Buy!" , true , qty=10 , comment ='All Trigger' , when = longCondition)
+
+sellCondition = (macd_cross==-1)  or (low == 0.9*strategy.position_avg_price) or (rsi>80)
+if (sellCondition)
+    strategy.exit("Sell" , "Buy!",profit =close)
